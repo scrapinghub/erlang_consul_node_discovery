@@ -15,6 +15,11 @@ erlang_consul_node_discovery_test_() ->
             application:set_env(erlang_consul_node_discovery, consul_url, "http://127.0.0.1:8000/"),
             application:set_env(erlang_consul_node_discovery, pull_interval, 3000),
 
+            application:set_env(erlang_consul_node_discovery, node_register_callback, {erlang_node_discovery, add_node}),
+            application:set_env(erlang_consul_node_discovery, node_unregister_callback, {erlang_node_discovery, remove_node}),
+            application:set_env(erlang_consul_node_discovery, consul_response_parser, {erlang_consul_node_discovery_utils, parse_consul_response}),
+
+
             {ok, WorkerPid} = erlang_consul_node_discovery_worker:start_link(),
             unlink(WorkerPid)
         end,

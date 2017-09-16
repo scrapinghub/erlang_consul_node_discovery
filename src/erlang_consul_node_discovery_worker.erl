@@ -21,7 +21,10 @@
     consul_url = undefined    :: binary(),
     pull_interval = 60 * 1000 :: pos_integer(),
     timer_ref                 :: reference(),
-    nodes                     :: [{nodename(), hostname(), inets:port()}]
+    nodes                     :: [{nodename(), hostname(), inets:port()}],
+    node_register_callback    :: undefined,
+    node_unregister_callback  :: undefined,
+    consul_response_parser    :: undefined
 }).
 
 %% API.
@@ -37,8 +40,18 @@ start_link() ->
 
 init([]) ->
     error_logger:info_msg("Starting consul worker!"),
+
     {ok, ConsulUrl} = application:get_env(erlang_consul_node_discovery, consul_url),
     {ok, PullInterval} = application:get_env(erlang_consul_node_discovery, pull_interval),
+
+    {ok, {RegCallbackMod, RegCallbackFun}} = application:get_env(erlang_consul_node_discovery, node_register_callback),
+    RegisterCallback = fun RegCallbackMod:RegCallbackFun/2,
+
+    {ok, {UnRegCallbackMod, UnRegCallbackFun}} = application:get_env(erlang_consul_node_discovery, node_unregister_callback),
+    UnregisterCallback = fun UnRegCallbackMod:UnRegCallbackFun/1,
+
+    {ok, {ConsulRespParserMod, ConsulRespParserFun}} = application:get_env(erlang_consul_node_discovery, consul_response_parser),
+    ConsulResponseParser = fun ConsulRespParserMod:ConsulRespParserFun/1,
 
     TimerRef = erlang:send_after(PullInterval, self(), pull_consul),
 
@@ -46,7 +59,10 @@ init([]) ->
         consul_url = ConsulUrl,
         pull_interval = PullInterval,
         timer_ref = TimerRef,
-        nodes = sets:new()
+        nodes = sets:new(),
+        node_register_callback = RegisterCallback,
+        node_unregister_callback = UnregisterCallback,
+        consul_response_parser = ConsulResponseParser
     },
 
     {ok, State}.
@@ -65,21 +81,22 @@ handle_info(pull_consul, State) ->
         timer_ref = TimerRef,
         pull_interval = PullInterval,
         consul_url = Url,
-        nodes = Nodes
+        nodes = Nodes,
+        node_register_callback = NodeRegisterCallback,
+        node_unregister_callback = NodeUnregisterCallback,
+        consul_response_parser = ConsulResponseParser
     } = State,
 
     erlang:cancel_timer(TimerRef),
 
     NState = case do_pull_consul(Url) of
         {ok, Body} ->
-            NewNodesInfo = sets:from_list(
-                extract_nodes_info(Body)
-            ),
+            NewNodesInfo = sets:from_list(ConsulResponseParser(Body)),
 
             ToRemove = sets:subtract(Nodes, NewNodesInfo),
             lists:foreach(
               fun({Nodename, _}) ->
-                  erlang_node_discovery:remove_node(Nodename)
+                  NodeUnregisterCallback(Nodename)
               end,
               sets:to_list(ToRemove)
             ),
@@ -90,7 +107,7 @@ handle_info(pull_consul, State) ->
                     lists:foreach(
                         fun(Port) ->
                             error_logger:info_msg("Connecting to ~p:~p~n", [Nodename, Port]),
-                            erlang_node_discovery:add_node(Nodename, Port)
+                            NodeRegisterCallback(Nodename, Port)
                         end,
                         Ports
                     )
@@ -132,34 +149,3 @@ do_pull_consul(Url) ->
             error_logger:error_msg("Could not fetch data from Consul, reason: ~p", [Reason]),
             {error, Reason}
     end.
-
--spec extract_nodes_info(Body) -> Result when
-    Body   :: binary(),
-    Result :: [{Nodename, PortsList}],
-    Nodename :: atom(),
-    PortsList :: [inet:port_number()].
-%
-% The data is provided by Consul in the following format:
-%
-% Key: <<"xx/node-id_node/xxxx">>
-% Value: #{<<"hostname">> => <<"hostname.com">>,
-%          <<"port">> => xxxx,
-%          <<"ports">> => [xxx,yyy,zzz]}
-% And we're extracting the data in following data:
-% [{node-id@hostname, [Ports]}]
-extract_nodes_info(Body) ->
-    lists:map(
-        fun(NodeMap) ->
-            Key = maps:get(<<"Key">>, NodeMap),
-            NodeShortName = hd(
-                binary:split(lists:nth(2, binary:split(Key, <<"/">>)), <<"_">>)
-            ),
-            RawValue = base64:decode(maps:get(<<"Value">>, NodeMap)),
-            Value = jiffy:decode(RawValue, [return_maps]),
-            PortsList = maps:get(<<"ports">>, Value),
-            Host = maps:get(<<"hostname">>, Value),
-            NodeFullName = binary_to_atom(<<NodeShortName/binary, "@", Host/binary>>, latin1),
-            {NodeFullName, PortsList}
-        end,
-        jiffy:decode(Body, [return_maps])
-    ).
