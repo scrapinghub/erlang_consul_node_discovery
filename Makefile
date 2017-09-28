@@ -20,6 +20,9 @@ dep_meck  = git git://github.com/eproxus/meck 0.8.7
 
 EUNIT_OPTS = verbose
 
+# Need to make sure that `shell` is not the first target in Makefile
+compile: all
+
 devel: all shell
 
 test: eunit ct
