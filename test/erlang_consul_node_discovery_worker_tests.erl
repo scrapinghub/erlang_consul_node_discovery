@@ -5,12 +5,6 @@ erlang_consul_node_discovery_test_() ->
     {
         foreach,
         fun() ->
-            meck:expect(
-                hackney, get,
-                fun(_) ->
-                    {ok, 200, [], some_ref}
-                end
-            ),
             application:load(erlang_consul_node_discovery),
             application:set_env(erlang_consul_node_discovery, consul_url, "http://127.0.0.1:8000/"),
             application:set_env(erlang_consul_node_discovery, pull_interval, 3000),
@@ -38,7 +32,7 @@ erlang_consul_node_discovery_test_() ->
             {"Nodes info stored in State of worker process", fun() ->
                 MyPid = self(),
                 meck:expect(
-                    hackney, body,
+                    httpc, request,
                     fun(_) ->
                         Val1 = #{<<"hostname">> => <<"h1">>, <<"ports">> => [1,2]},
                         Val2 = #{<<"hostname">> => <<"h2">>, <<"ports">> => [3,4]},
@@ -53,7 +47,7 @@ erlang_consul_node_discovery_test_() ->
                                 <<"Value">> => encode_value(Val2)
                             }
                         ]),
-                        {ok, Body}
+                        {ok, {200, [], Body}}
                     end
                 ),
                 meck:expect(
@@ -70,10 +64,10 @@ erlang_consul_node_discovery_test_() ->
                     lists:sort(erlang_consul_node_discovery_worker:nodes_info())
                 )
             end},
-            {"Messages about node updates are sent to discovery", fun() ->
+            {"Messages about new nodes are sent to discovery", fun() ->
                 MyPid = self(),
                 meck:expect(
-                    hackney, body,
+                    httpc, request,
                     fun(_) ->
                         Val1 = #{<<"hostname">> => <<"h1">>, <<"ports">> => [1,2]},
 
@@ -83,7 +77,7 @@ erlang_consul_node_discovery_test_() ->
                                 <<"Value">> => encode_value(Val1)
                             }
                         ]),
-                        {ok, Body}
+                        {ok, {200, [], Body}}
                     end
                 ),
 
@@ -103,10 +97,10 @@ erlang_consul_node_discovery_test_() ->
                     lists:sort([{'n-1@h1', 1}, {'n-1@h1', 2}])
                 )
             end},
-            {"Messages about node updates are sent to discovery", fun() ->
+            {"Messages about node updates (e.g. new port) are sent to discovery", fun() ->
                 MyPid = self(),
                 meck:expect(
-                    hackney, body,
+                    httpc, request,
                     fun(_) ->
                         Val1 = #{<<"hostname">> => <<"h1">>, <<"ports">> => [1,2]},
 
@@ -116,7 +110,7 @@ erlang_consul_node_discovery_test_() ->
                                 <<"Value">> => encode_value(Val1)
                             }
                         ]),
-                        {ok, Body}
+                        {ok, {200, [], Body}}
                     end
                 ),
 
@@ -132,7 +126,7 @@ erlang_consul_node_discovery_test_() ->
                 _ = wait_for_messages(2, []),
 
                 meck:expect(
-                    hackney, body,
+                    httpc, request,
                     fun(_) ->
                         Val1 = #{<<"hostname">> => <<"h1">>, <<"ports">> => [4]},
 
@@ -142,7 +136,7 @@ erlang_consul_node_discovery_test_() ->
                                 <<"Value">> => encode_value(Val1)
                             }
                         ]),
-                        {ok, Body}
+                        {ok, {200, [], Body}}
                     end
                 ),
                 Pid ! pull_consul,

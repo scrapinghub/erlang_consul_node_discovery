@@ -11,8 +11,7 @@ SHELL_OPTS = -name $(NODENAME) -boot start_sasl -s erlang_consul_node_discovery_
 
 
 # Production deps
-DEPS = hackney jiffy erlang_node_discovery
-dep_hackney = git https://github.com/benoitc/hackney.git 1.9.0
+DEPS = jiffy erlang_node_discovery
 dep_jiffy = git git://github.com/davisp/jiffy.git 0.14.11
 dep_erlang_node_discovery = git https://bitbucket.org/scrapinghub/erlang-node-discovery.git 0.1.1
 

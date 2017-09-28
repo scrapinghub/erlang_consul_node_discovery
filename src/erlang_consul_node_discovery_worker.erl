@@ -41,6 +41,9 @@ start_link() ->
 init([]) ->
     error_logger:info_msg("Starting consul worker!"),
 
+    % Starting inets profile in order to perform requests
+    inets:start(),
+
     {ok, ConsulUrl} = application:get_env(erlang_consul_node_discovery, consul_url),
     {ok, PullInterval} = application:get_env(erlang_consul_node_discovery, pull_interval),
 
@@ -142,9 +145,9 @@ code_change(_OldVsn, State, _Extra) ->
     Reason   :: term().
 
 do_pull_consul(Url) ->
-    case hackney:get(Url) of
-        {ok, _StatusCode, _RespHeaders, ClientRef} ->
-            hackney:body(ClientRef);
+    case httpc:request(Url) of
+        {ok, {_StatusCode, _RespHeader, Body}} ->
+            {ok, Body};
         {error, Reason} ->
             error_logger:error_msg("Could not fetch data from Consul, reason: ~p", [Reason]),
             {error, Reason}
