@@ -17,14 +17,15 @@
 -type hostname() :: binary().
 
 
+-define(poll_consul, poll_consul).
+
 -record(state, {
     consul_url = undefined    :: binary(),
-    pull_interval = 60 * 1000 :: pos_integer(),
+    poll_interval = 60 * 1000 :: pos_integer(),
     timer_ref                 :: reference(),
     nodes                     :: [{nodename(), hostname(), inets:port()}],
-    node_register_callback    :: undefined,
-    node_unregister_callback  :: undefined,
-    consul_response_parser    :: undefined
+    discovery_callback        :: undefined,
+    response_parser           :: undefined
 }).
 
 %% API.
@@ -41,8 +42,9 @@ start_link() ->
 init([]) ->
     % Starting inets profile in order to perform requests
     inets:start(),
-    %FIXME: why we need to set each callback separetely? Why not just pass module with well defined API?
+
     catch begin
+
         ConsulUrl = case application:get_env(erlang_consul_node_discovery, consul_url) of
             {ok, C} ->
                 C;
@@ -51,49 +53,31 @@ init([]) ->
                 throw(ignore)
         end,
 
-        PullInterval = case application:get_env(erlang_consul_node_discovery, pull_interval) of
-            {ok, P} -> P;
-            undefined -> 30000
-        end,
+        CallBack = application:get_env(
+            erlang_consul_node_discovery,
+            discovery_callback, erlang_node_discovery
+        ),
 
-        RegisterCallback = case application:get_env(erlang_consul_node_discovery, node_register_callback) of
-            {ok, {RCM, RCF}} ->
-                fun RCM:RCF/2;
-            undefined ->
-                error_logger:warning_msg("Node register callback is not set, consul discovery will not be used"),
-                throw(ignore)
-        end,
+        PollInterval = application:get_env(erlang_consul_node_discovery, poll_interval, 60000),
+        ReponseParser = application:get_env(
+            erlang_consul_node_discovery, response_parser,
+            erlang_consul_node_discovery_response_parser
+        ),
 
-        UnregisterCallback = case application:get_env(erlang_consul_node_discovery, node_unregister_callback) of
-            {ok, {UNCM, UNCF}} ->
-                fun UNCM:UNCF/1;
-            undefined ->
-                error_logger:warning_msg("Node unregister callback is not set, consul discovery will not be used"),
-                throw(ignore)
-        end,
-
-        ConsulResponseParser = case application:get_env(erlang_consul_node_discovery, consul_response_parser) of
-            {ok, {CRPM, CRPF}} ->
-                fun CRPM:CRPF/1;
-            undefined ->
-                error_logger:warning_msg("Consul response parser is not set, consul discovery will not be used"),
-                throw(ignore)
-        end,
         State = #state{
             consul_url = ConsulUrl,
-            pull_interval = PullInterval,
-            timer_ref = erlang:send_after(PullInterval, self(), pull_consul),
-            nodes = sets:new(),
-            node_register_callback = RegisterCallback,
-            node_unregister_callback = UnregisterCallback,
-            consul_response_parser = ConsulResponseParser
+            poll_interval = PollInterval,
+            timer_ref = erlang:send_after(PollInterval, self(), ?poll_consul),
+            nodes = [],
+            response_parser = ReponseParser,
+            discovery_callback = CallBack
         },
         {ok, State}
     end.
 
 
 handle_call(nodes_info, _From, State = #state{nodes = Nodes}) ->
-    {reply, sets:to_list(Nodes), State};
+    {reply, Nodes, State};
 
 handle_call(_Request, _From, State) ->
     {reply, ignored, State}.
@@ -101,50 +85,49 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info(pull_consul, State) ->
+handle_info(?poll_consul, State) ->
     #state{
         timer_ref = TimerRef,
-        pull_interval = PullInterval,
+        poll_interval = PollInterval,
         consul_url = Url,
+        response_parser = ResponseParser,
         nodes = Nodes,
-        node_register_callback = NodeRegisterCallback,
-        node_unregister_callback = NodeUnregisterCallback,
-        consul_response_parser = ConsulResponseParser
+        discovery_callback = DiscoveryCallback
     } = State,
 
     erlang:cancel_timer(TimerRef),
 
     NState = case do_pull_consul(Url) of
         {ok, Body} ->
-            NewNodesInfo = sets:from_list(ConsulResponseParser(Body)),
+            NewNodesInfo = ResponseParser:parse(Body),
 
-            ToRemove = sets:subtract(Nodes, NewNodesInfo),
+            ToRemove = Nodes -- NewNodesInfo,
             lists:foreach(
               fun({Nodename, _}) ->
-                  NodeUnregisterCallback(Nodename)
+                  DiscoveryCallback:remove_node(Nodename)
               end,
-              sets:to_list(ToRemove)
+              ToRemove
             ),
 
-            ToAdd = sets:subtract(NewNodesInfo, Nodes),
+            ToAdd = NewNodesInfo -- Nodes,
             lists:foreach(
               fun({Nodename, Ports}) ->
                     lists:foreach(
                         fun(Port) ->
                             error_logger:info_msg("Connecting to ~p:~p~n", [Nodename, Port]),
-                            NodeRegisterCallback(Nodename, Port)
+                            DiscoveryCallback:add_node(Nodename, Port)
                         end,
                         Ports
                     )
               end,
-              sets:to_list(ToAdd)
+              ToAdd
             ),
 
             State#state{nodes = NewNodesInfo};
         {error, _} -> State
     end,
 
-    NewTimerRef = erlang:send_after(PullInterval, self(), pull_consul),
+    NewTimerRef = erlang:send_after(PollInterval, self(), ?poll_consul),
     {noreply, NState#state{timer_ref = NewTimerRef}};
 
 

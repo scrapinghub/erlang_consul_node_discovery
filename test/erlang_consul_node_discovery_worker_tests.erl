@@ -7,12 +7,9 @@ erlang_consul_node_discovery_test_() ->
         fun() ->
             application:load(erlang_consul_node_discovery),
             application:set_env(erlang_consul_node_discovery, consul_url, "http://127.0.0.1:8000/"),
-            application:set_env(erlang_consul_node_discovery, pull_interval, 3000),
+            application:set_env(erlang_consul_node_discovery, poll_interval, 3000),
 
-            application:set_env(erlang_consul_node_discovery, node_register_callback, {erlang_node_discovery, add_node}),
-            application:set_env(erlang_consul_node_discovery, node_unregister_callback, {erlang_node_discovery, remove_node}),
-            application:set_env(erlang_consul_node_discovery, consul_response_parser, {erlang_consul_node_discovery_utils, parse_consul_response}),
-
+            application:set_env(erlang_consul_node_discovery, backend, erlang_consul_node_discovery_backend),
 
             {ok, WorkerPid} = erlang_consul_node_discovery_worker:start_link(),
             unlink(WorkerPid)
@@ -57,7 +54,7 @@ erlang_consul_node_discovery_test_() ->
 
                 % erlang_consul_node_discovery_worker:nodes_info()
                 P = whereis(erlang_consul_node_discovery_worker),
-                P ! pull_consul,
+                P ! poll_consul,
 
                 ?assertEqual(
                     lists:sort([{'n-1@h1',[1,2]},{'n-2@h2',[3,4]}]),
@@ -89,7 +86,7 @@ erlang_consul_node_discovery_test_() ->
 
                 % erlang_consul_node_discovery_worker:nodes_info()
                 Pid = whereis(erlang_consul_node_discovery_worker),
-                Pid ! pull_consul,
+                Pid ! poll_consul,
 
                 Messages = wait_for_messages(2, []),
                 ?assertEqual(
@@ -121,7 +118,7 @@ erlang_consul_node_discovery_test_() ->
                 meck:expect(erlang_node_discovery, remove_node, fun(Node) -> MyPid ! {removing_node, Node} end),
 
                 Pid = whereis(erlang_consul_node_discovery_worker),
-                Pid ! pull_consul,
+                Pid ! poll_consul,
 
                 _ = wait_for_messages(2, []),
 
@@ -139,7 +136,7 @@ erlang_consul_node_discovery_test_() ->
                         {ok, {200, [], Body}}
                     end
                 ),
-                Pid ! pull_consul,
+                Pid ! poll_consul,
 
 
                 [FirstMsg|Tail] = wait_for_messages(2, []),
