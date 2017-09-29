@@ -1,8 +1,8 @@
--module(erlang_consul_node_discovery_utils).
+-module(erlang_consul_node_discovery_response_parser).
 
--export ([parse_consul_response/1]).
+-export ([parse/1]).
 
--spec parse_consul_response(Body) -> Result when
+-spec parse(Body) -> Result when
     Body   :: binary(),
     Result :: [{Nodename, PortsList}],
     Nodename :: atom(),
@@ -16,7 +16,7 @@
 %          <<"ports">> => [xxx,yyy,zzz]}
 % And we're extracting the data in following data:
 % [{node-id@hostname, [Ports]}]
-parse_consul_response(Body) ->
+parse(Body) ->
     lists:map(
         fun(NodeMap) ->
             Key = maps:get(<<"Key">>, NodeMap),
