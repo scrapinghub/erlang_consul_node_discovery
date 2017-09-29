@@ -39,36 +39,58 @@ start_link() ->
 %% gen_server.
 
 init([]) ->
-    error_logger:info_msg("Starting consul worker!"),
-
     % Starting inets profile in order to perform requests
     inets:start(),
+    %FIXME: why we need to set each callback separetely? Why not just pass module with well defined API?
+    catch begin
+        ConsulUrl = case application:get_env(erlang_consul_node_discovery, consul_url) of
+            {ok, C} ->
+                C;
+            undefined ->
+                error_logger:warning_msg("Consul url is not set, consul discovery will not be used"),
+                throw(ignore)
+        end,
 
-    {ok, ConsulUrl} = application:get_env(erlang_consul_node_discovery, consul_url),
-    {ok, PullInterval} = application:get_env(erlang_consul_node_discovery, pull_interval),
+        PullInterval = case application:get_env(erlang_consul_node_discovery, pull_interval) of
+            {ok, P} -> P;
+            undefined -> 30000
+        end,
 
-    {ok, {RegCallbackMod, RegCallbackFun}} = application:get_env(erlang_consul_node_discovery, node_register_callback),
-    RegisterCallback = fun RegCallbackMod:RegCallbackFun/2,
+        RegisterCallback = case application:get_env(erlang_consul_node_discovery, node_register_callback) of
+            {ok, {RCM, RCF}} ->
+                fun RCM:RCF/2;
+            undefined ->
+                error_logger:warning_msg("Node register callback is not set, consul discovery will not be used"),
+                throw(ignore)
+        end,
 
-    {ok, {UnRegCallbackMod, UnRegCallbackFun}} = application:get_env(erlang_consul_node_discovery, node_unregister_callback),
-    UnregisterCallback = fun UnRegCallbackMod:UnRegCallbackFun/1,
+        UnregisterCallback = case application:get_env(erlang_consul_node_discovery, node_unregister_callback) of
+            {ok, {UNCM, UNCF}} ->
+                fun UNCM:UNCF/1;
+            undefined ->
+                error_logger:warning_msg("Node unregister callback is not set, consul discovery will not be used"),
+                throw(ignore)
+        end,
 
-    {ok, {ConsulRespParserMod, ConsulRespParserFun}} = application:get_env(erlang_consul_node_discovery, consul_response_parser),
-    ConsulResponseParser = fun ConsulRespParserMod:ConsulRespParserFun/1,
+        ConsulResponseParser = case application:get_env(erlang_consul_node_discovery, consul_response_parser) of
+            {ok, {CRPM, CRPF}} ->
+                fun CRPM:CRPF/1;
+            undefined ->
+                error_logger:warning_msg("Consul response parser is not set, consul discovery will not be used"),
+                throw(ignore)
+        end,
+        State = #state{
+            consul_url = ConsulUrl,
+            pull_interval = PullInterval,
+            timer_ref = erlang:send_after(PullInterval, self(), pull_consul),
+            nodes = sets:new(),
+            node_register_callback = RegisterCallback,
+            node_unregister_callback = UnregisterCallback,
+            consul_response_parser = ConsulResponseParser
+        },
+        {ok, State}
+    end.
 
-    TimerRef = erlang:send_after(PullInterval, self(), pull_consul),
-
-    State = #state{
-        consul_url = ConsulUrl,
-        pull_interval = PullInterval,
-        timer_ref = TimerRef,
-        nodes = sets:new(),
-        node_register_callback = RegisterCallback,
-        node_unregister_callback = UnregisterCallback,
-        consul_response_parser = ConsulResponseParser
-    },
-
-    {ok, State}.
 
 handle_call(nodes_info, _From, State = #state{nodes = Nodes}) ->
     {reply, sets:to_list(Nodes), State};
