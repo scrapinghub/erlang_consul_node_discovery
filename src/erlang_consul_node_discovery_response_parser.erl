@@ -17,18 +17,25 @@
 % And we're extracting the data in following data:
 % [{node-id@hostname, [Ports]}]
 parse(Body) ->
-    lists:map(
-        fun(NodeMap) ->
-            Key = maps:get(<<"Key">>, NodeMap),
-            NodeShortName = hd(
-                binary:split(lists:nth(2, binary:split(Key, <<"/">>)), <<"_">>)
-            ),
-            RawValue = base64:decode(maps:get(<<"Value">>, NodeMap)),
-            Value = jiffy:decode(RawValue, [return_maps]),
-            PortsList = maps:get(<<"ports">>, Value),
-            Host = maps:get(<<"hostname">>, Value),
-            NodeFullName = binary_to_atom(<<NodeShortName/binary, "@", Host/binary>>, latin1),
-            {NodeFullName, PortsList}
-        end,
-        jiffy:decode(Body, [return_maps])
-    ).
+    FoldFun = fun(NodeMap, Acc) ->
+        Key = maps:get(<<"Key">>, NodeMap),
+        NodeShortName = hd(
+            binary:split(lists:nth(2, binary:split(Key, <<"/">>)), <<"_">>)
+        ),
+        RawValue = base64:decode(maps:get(<<"Value">>, NodeMap)),
+        Value = jiffy:decode(RawValue, [return_maps]),
+        Host = maps:get(<<"hostname">>, Value),
+        case maps:get(<<"ports">>, Value, []) of
+            Ports when is_list(Ports) andalso length(Ports) > 0 ->
+                %% Taking last one from list
+                %% it shouldn't be like that
+                %% consul should return labeled ports
+                %% currently order of ports is vital for operation via consul discovery
+                Port = lists:last(Ports),
+                NodeFullName = binary_to_atom(<<NodeShortName/binary, "@", Host/binary>>, latin1),
+                [{NodeFullName, Port}|Acc];
+            _ ->
+                Acc
+        end
+    end,
+    lists:foldl(FoldFun, [], jiffy:decode(Body, [return_maps])).
