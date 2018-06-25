@@ -16,6 +16,8 @@
 %          <<"ports">> => [xxx,yyy,zzz]}
 % And we're extracting the data in following data:
 % [{node-id@hostname, [Ports]}]
+parse("") -> [];
+parse(<<"">>) -> [];
 parse(Body) ->
     FoldFun = fun(NodeMap, Acc) ->
         Key = maps:get(<<"Key">>, NodeMap),
