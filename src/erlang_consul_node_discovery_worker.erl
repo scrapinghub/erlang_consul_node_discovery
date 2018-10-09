@@ -100,7 +100,7 @@ poll_consul(State = #state{consul_url = Url, response_parser = ResponseParser, d
         {ok, Body} ->
             ConsulNodes = [{Node, Port} || {Node, Port} <- ResponseParser:parse(Body)],
             CurrentNodes = [{Node, Port} || {Node, {_Host, Port}} <- DiscoveryCallback:list_nodes()],
-            remove_nodes(DiscoveryCallback, CurrentNodes -- ConsulNodes),
+            % remove_nodes(DiscoveryCallback, CurrentNodes -- ConsulNodes),
             add_nodes(DiscoveryCallback, ConsulNodes -- CurrentNodes),
             ok;
         {error, Reason} ->
