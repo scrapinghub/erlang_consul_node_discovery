@@ -21,23 +21,38 @@ parse(<<"">>) -> [];
 parse(Body) ->
     FoldFun = fun(NodeMap, Acc) ->
         Key = maps:get(<<"Key">>, NodeMap),
-        NodeShortName = hd(
-            binary:split(lists:nth(2, binary:split(Key, <<"/">>)), <<"_">>)
-        ),
-        RawValue = base64:decode(maps:get(<<"Value">>, NodeMap)),
-        Value = jiffy:decode(RawValue, [return_maps]),
-        Host = maps:get(<<"hostname">>, Value),
-        case maps:get(<<"ports">>, Value, []) of
-            Ports when is_list(Ports) andalso length(Ports) > 0 ->
-                %% Taking last one from list
-                %% it shouldn't be like that
-                %% consul should return labeled ports
-                %% currently order of ports is vital for operation via consul discovery
-                Port = lists:last(Ports),
-                NodeFullName = binary_to_atom(<<NodeShortName/binary, "@", Host/binary>>, latin1),
-                [{NodeFullName, Port}|Acc];
-            _ ->
-                Acc
+        Value = base64:decode(maps:get(<<"Value">>, NodeMap)),
+        case [parse_key(Key) | parse_value(Value)] of
+            [nomatch, _, _] -> Acc;
+            [Node, Host, Port] when is_binary(Node) andalso
+                                    is_binary(Host) ->
+                Name = binary_to_atom(<<Node/binary, "@", Host/binary>>, latin1),
+                [{Name, Port}|Acc]
         end
     end,
     lists:foldl(FoldFun, [], jiffy:decode(Body, [return_maps])).
+        
+parse_key(Key) ->
+    case binary:split(Key, [<<"/">>,<<"_">>], [global]) of
+        [<<"upstreams">>,Node,<<"node">>|_] -> Node;
+        [<<"upstreams">>,Node,<<"main">>|_] -> Node;
+        [<<"upstreams">>,Node, Id|_] ->
+            case re:run(Id, "\\d+") of
+                {match, _} -> <<Node/binary, "-", Id/binary>>;
+                nomatch -> nomatch
+            end;
+        _ -> nomatch
+    end.
+
+parse_value(RawValue) ->
+    Value = jiffy:decode(RawValue, [return_maps]),
+    Host = maps:get(<<"hostname">>, Value),
+    Port = 
+    case {maps:get(<<"ports">>, Value, []),
+          maps:get(<<"namedports">>, Value, #{})} of
+        {_, #{<<"dist">>:=P}} -> P;
+        {[P], _} -> P;
+        {Ports, _} when is_list(Ports) -> lists:last(Ports) 
+    end,
+    [Host, Port].
+

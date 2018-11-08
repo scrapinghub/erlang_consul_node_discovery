@@ -51,11 +51,11 @@ erlang_consul_node_discovery_test_() ->
 
                         Body = jiffy:encode([
                             #{
-                                <<"Key">>   => <<"xxx/n-1_node/xxx">>,
+                                <<"Key">>   => <<"upstreams/n-1_node/xxx">>,
                                 <<"Value">> => encode_value(Val1)
                             },
                             #{
-                                <<"Key">>   => <<"xxx/n-2_node/xxx">>,
+                                <<"Key">>   => <<"upstreams/n-2_node/xxx">>,
                                 <<"Value">> => encode_value(Val2)
                             }
                         ]),
@@ -92,7 +92,7 @@ erlang_consul_node_discovery_test_() ->
 
                         Body = jiffy:encode([
                             #{
-                                <<"Key">>   => <<"xxx/n-1_node/xxx">>,
+                                <<"Key">>   => <<"upstreams/n-1_node/xxx">>,
                                 <<"Value">> => encode_value(Val1)
                             }
                         ]),
@@ -129,7 +129,7 @@ erlang_consul_node_discovery_test_() ->
 
                         Body = jiffy:encode([
                             #{
-                                <<"Key">>   => <<"xxx/n-1_node/xxx">>,
+                                <<"Key">>   => <<"upstreams/n-1_node/xxx">>,
                                 <<"Value">> => encode_value(Val1)
                             }
                         ]),
@@ -149,7 +149,7 @@ erlang_consul_node_discovery_test_() ->
 
                         Body = jiffy:encode([
                             #{
-                                <<"Key">>   => <<"xxx/n-1_node/xxx">>,
+                                <<"Key">>   => <<"upstreams/n-1_node/xxx">>,
                                 <<"Value">> => encode_value(Val1)
                             }
                         ]),
@@ -158,8 +158,8 @@ erlang_consul_node_discovery_test_() ->
                 ),
                 Pid ! poll_consul,
                 ?assertEqual(
-                    [{removing_node, 'n-1@h1'}, {adding_node, 'n-1@h1', 4}, timeout],
-                    wait_for_messages(3, [])
+                    [{adding_node, 'n-1@h1', 4}, timeout],
+                    wait_for_messages(2, [])
                 )
             end}
         ]
