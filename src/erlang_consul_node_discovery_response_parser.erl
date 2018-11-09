@@ -38,7 +38,7 @@ parse_key(Key) ->
         [<<"upstreams">>,Node,<<"main">>|_] -> Node;
         [<<"upstreams">>,Node, Id|_] ->
             case re:run(Id, "\\d+") of
-                {match, _} -> <<Node/binary, "-", Id/binary>>;
+                {match, _} -> <<Node/binary, Id/binary>>;
                 nomatch -> nomatch
             end;
         _ -> nomatch
