@@ -19,19 +19,19 @@
 parse("") -> [];
 parse(<<"">>) -> [];
 parse(Body) ->
-    FoldFun = fun(NodeMap, Acc) ->
-        Key = maps:get(<<"Key">>, NodeMap),
-        Value = base64:decode(maps:get(<<"Value">>, NodeMap)),
-        case [parse_key(Key) | parse_value(Value)] of
-            [nomatch, _, _] -> Acc;
-            [Node, Host, Port] when is_binary(Node) andalso
-                                    is_binary(Host) ->
-                Name = binary_to_atom(<<Node/binary, "@", Host/binary>>, latin1),
-                [{Name, Port}|Acc]
-        end
-    end,
-    lists:foldl(FoldFun, [], jiffy:decode(Body, [return_maps])).
-        
+    lists:foldl(fun parse_node_data/2, [], jiffy:decode(Body, [return_maps])).
+
+parse_node_data(NodeMap, Acc) ->
+    case parse_key(maps:get(<<"Key">>, NodeMap)) of
+        nomatch -> Acc;
+        Node when is_binary(Node) ->
+            NodeAtom = binary_to_atom(Node, latin1),
+            lists:foldl(
+              fun(HostPort, IntAcc) -> [[NodeAtom |HostPort] |IntAcc] end,
+              Acc,
+              parse_value(base64:decode(maps:get(<<"Value">>, NodeMap))))
+    end.
+
 parse_key(Key) ->
     case binary:split(Key, [<<"/">>,<<"_">>], [global]) of
         [<<"upstreams">>,Node,<<"node">>|_] -> Node;
@@ -46,13 +46,18 @@ parse_key(Key) ->
 
 parse_value(RawValue) ->
     Value = jiffy:decode(RawValue, [return_maps]),
-    Host = maps:get(<<"hostname">>, Value),
-    Port = 
+    Host = binary_to_atom(maps:get(<<"hostname">>, Value), latin1),
+    PortList =
     case {maps:get(<<"ports">>, Value, []),
           maps:get(<<"namedports">>, Value, #{})} of
-        {_, #{<<"dist">>:=P}} -> P;
-        {[P], _} -> P;
-        {Ports, _} when is_list(Ports) -> lists:last(Ports) 
+        {_, Ports} when is_map(Ports) andalso map_size(Ports) > 0 ->
+            maps:fold(fun parse_named_ports/3, [], Ports);
+        {Ports, _} when is_list(Ports) ->
+            [[lists:last(Ports)]]
     end,
-    [Host, Port].
+    [[Host |Port] || Port <- PortList].
 
+parse_named_ports(Name, Port, Acc) ->
+    PortNames = application:get_env(erlang_consul_node_discovery, port_names, []),
+    Driver = proplists:get_value(Name, PortNames, binary_to_atom(Name, latin1)),
+    [[Port, Driver] |Acc].
