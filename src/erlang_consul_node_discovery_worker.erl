@@ -97,7 +97,7 @@ poll_consul(State = #state{consul_url = Url, response_parser = Parser}) ->
     Timeout:: pos_integer(),
     Result :: {ok, binary()} | {error, term()}.
 do_fetch_url(Url, Timeout) ->
-    ConnectTimeout = 20000,
+    ConnectTimeout = Timeout div 3,
     case httpc:request(get, {Url, []}, [{timeout, Timeout-ConnectTimeout},
                                         {connect_timeout, ConnectTimeout}], []) of
         {ok, {_, _, Body}} -> {ok, Body};
