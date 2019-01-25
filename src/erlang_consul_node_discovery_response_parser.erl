@@ -59,5 +59,10 @@ parse_value(RawValue) ->
 
 parse_named_ports(Name, Port, Acc) ->
     PortNames = application:get_env(erlang_consul_node_discovery, port_names, []),
-    Driver = proplists:get_value(Name, PortNames, binary_to_atom(Name, latin1)),
-    [[Port, Driver] |Acc].
+    NameAtom = binary_to_atom(Name, latin1),
+    case proplists:get_value(NameAtom, PortNames,
+             proplists:get_value(Name, PortNames, false)) of
+        false -> Acc;
+        true -> [[Port, NameAtom] |Acc];
+        Driver when is_atom(Driver) -> [[Port, Driver] |Acc]
+    end.

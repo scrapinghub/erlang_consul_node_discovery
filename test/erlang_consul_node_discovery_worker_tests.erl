@@ -13,7 +13,7 @@ erlang_consul_node_discovery_test_() ->
             application:set_env(erlang_consul_node_discovery, consul_url, "http://127.0.0.1:8000/"),
             application:set_env(erlang_consul_node_discovery, poll_interval, 60000),
             application:set_env(erlang_consul_node_discovery, discovery_callback, erlang_node_discovery),
-            application:set_env(erlang_consul_node_discovery, port_names, [{<<"dist">>, inet_tcp}]),
+            application:set_env(erlang_consul_node_discovery, port_names, [{<<"dist">>, inet_tcp}, eless_tcp]),
 
             {ok, WorkerPid} = erlang_consul_node_discovery_worker:start_link(),
             unlink(WorkerPid)
@@ -44,7 +44,7 @@ erlang_consul_node_discovery_test_() ->
                 end),
                 Val1 = #{<<"hostname">> => <<"h1">>, <<"ports">> => [1,2]},
                 Val2 = #{<<"hostname">> => <<"h2">>, <<"ports">> => [3,4],
-                         <<"namedports">> => #{<<"dist">> => 5, <<"eless_tcp">> => 6}},
+                         <<"namedports">> => #{<<"dist">> => 5, <<"eless_tcp">> => 6, <<"api">> => 7}},
                 Body = jiffy:encode(
                          [#{<<"Key">>   => <<"upstreams/n-1_node/xxx">>,
                             <<"Value">> => encode_value(Val1)},
