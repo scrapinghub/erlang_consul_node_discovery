@@ -42,6 +42,8 @@ erlang_consul_node_discovery_test_() ->
                     Self ! {adding_node, Node, Host, Port, Driver},
                     ets:insert(TempEts, {Node, Host, Port, Driver})
                 end),
+                meck:expect(erlang_node_discovery, list_nodes, fun() -> [] end),
+                meck:expect(erlang_node_discovery, remove_node, fun(_) -> ok end),
                 Val1 = #{<<"hostname">> => <<"h1">>, <<"ports">> => [1,2]},
                 Val2 = #{<<"hostname">> => <<"h2">>, <<"ports">> => [3,4],
                          <<"namedports">> => #{<<"dist">> => 5, <<"eless_tcp">> => 6, <<"api">> => 7}},
@@ -80,6 +82,8 @@ erlang_consul_node_discovery_test_() ->
             {"Messages about new nodes are sent to discovery", fun() ->
                 Self = self(),
                 TempEts = ets:new(temp, [public, bag]),
+                meck:expect(erlang_node_discovery, list_nodes, fun() -> [] end),
+                meck:expect(erlang_node_discovery, remove_node, fun(_) -> ok end),
                 meck:expect(erlang_node_discovery, add_node, fun(Node, Host, Port) ->
                     Self ! {adding_node, Node, Host, Port},
                     ets:insert(TempEts, {Node, {Host, Port}})
@@ -108,6 +112,8 @@ erlang_consul_node_discovery_test_() ->
             {"Messages about node updates (e.g. new port) are sent to discovery", fun() ->
                 Self = self(),
                 TempEts = ets:new(temp, [public, bag]),
+                meck:expect(erlang_node_discovery, list_nodes, fun() -> [] end),
+                meck:expect(erlang_node_discovery, remove_node, fun(_) -> ok end),
                 meck:expect(erlang_node_discovery, add_node, fun(Node, Host, Port) ->
                     Self ! {adding_node, Node, Host, Port},
                     ets:insert(TempEts, {Node, {Host, Port}})
