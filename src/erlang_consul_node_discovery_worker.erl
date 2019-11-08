@@ -1,6 +1,8 @@
 -module(erlang_consul_node_discovery_worker).
 -behaviour(gen_server).
 
+-callback list_nodes() -> list().
+-callback remove_node(atom()) -> any().
 -callback add_node(Node::atom(), Host::atom(), Port::integer()) -> ok.
 -callback add_node(Node::atom(), Host::atom(), Port::integer(), Driver::atom()) -> ok.
 
@@ -84,9 +86,8 @@ code_change(_OldVsn, State, _Extra) ->
 poll_consul(State = #state{consul_url = Url, response_parser = Parser}) ->
     case do_fetch_url(Url, State#state.poll_interval) of
         {ok, Body} ->
-            lists:foreach(
-              fun(Args) -> apply(State#state.discovery_callback, add_node, Args) end,
-              Parser:parse(Body));
+            erlang_consul_node_discovery_sync:apply(Parser:parse(Body),
+                State#state.discovery_callback);
         {error, Reason} ->
             error_logger:error_msg("Failed to fetch url '~ts' with reason: ~p~n", [Url, Reason])
     end,
