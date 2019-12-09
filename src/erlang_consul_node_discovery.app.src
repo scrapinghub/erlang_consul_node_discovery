@@ -1,0 +1,12 @@
+{application, erlang_consul_node_discovery, [
+    {description, "erlang consul node discovery"},
+    {vsn, "0.2.4"},
+    {registered,[]},
+    {mod, {erlang_consul_node_discovery_app, []}},
+    {applications, [
+        inets,
+        kernel,
+        stdlib
+    ]},
+    {modules, []}
+]}.
