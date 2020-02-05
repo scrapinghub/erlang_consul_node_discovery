@@ -33,10 +33,10 @@ parse_node_data(NodeMap, Acc) ->
     end.
 
 parse_key(Key) ->
-    case binary:split(Key, [<<"/">>,<<"_">>], [global]) of
-        [<<"upstreams">>,Node,<<"node">>|_] -> Node;
-        [<<"upstreams">>,Node,<<"main">>|_] -> Node;
-        [<<"upstreams">>,Node, Id|_] ->
+    case binary:split(Key, [<<"/">>, <<"_">>], [global]) of
+        [<<"upstreams">>, Node, <<"node">>|_] -> Node;
+        [<<"upstreams">>, Node, <<"main">>|_] -> Node;
+        [<<"upstreams">>, Node, Id|_] ->
             case re:run(Id, "\\d+") of
                 {match, _} -> <<Node/binary, Id/binary>>;
                 nomatch -> nomatch
@@ -58,7 +58,8 @@ parse_value(RawValue) ->
     [[Host |Port] || Port <- PortList].
 
 parse_named_ports(Name, Port, Acc) ->
-    PortNames = application:get_env(erlang_consul_node_discovery, port_names, []),
+    PortNames = application:get_env(erlang_consul_node_discovery,
+        port_names, []),
     NameAtom = binary_to_atom(Name, latin1),
     case proplists:get_value(NameAtom, PortNames,
              proplists:get_value(Name, PortNames, false)) of

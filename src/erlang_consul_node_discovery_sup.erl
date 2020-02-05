@@ -9,8 +9,8 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-	ConsulWorker =  #{
-		id => erlang_consul_node_discovery_worker,
+    ConsulWorker =  #{
+        id => erlang_consul_node_discovery_worker,
         start => {erlang_consul_node_discovery_worker, start_link, []},
         restart => permanent,
         shutdown => 50000,

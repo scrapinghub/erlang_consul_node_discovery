@@ -31,3 +31,5 @@ src/crawlera_version.erl
 config/devel_local.config
 .DS_Store
 docker-compose_local.yml
+elvis
+*.plt
