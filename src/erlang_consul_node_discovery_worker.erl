@@ -23,10 +23,12 @@
 -record(state, {
     consul_url                :: binary(),
     poll_interval = 60 * 1000 :: pos_integer(),
-    timer_ref                 :: reference(),
+    timer_ref                 :: timer:tref(),
     discovery_callback        :: module(),
     response_parser           :: module()
 }).
+
+-type state() :: #state{}.
 
 %% API.
 
@@ -43,14 +45,17 @@ init([]) ->
         {ok, ConsulUrl} = application:get_env(?APP, consul_url),
         {ok, CallBack} = application:get_env(?APP, discovery_callback),
         PollInterval = application:get_env(?APP, poll_interval, 60000),
+        {ok, TRef} = timer:send_interval(PollInterval, poll_consul),
         State = #state{consul_url = ConsulUrl,
                        discovery_callback = CallBack,
                        response_parser = ?PARSER,
-                       poll_interval = PollInterval},
-        {ok, init_timer(State), 0}
+                       poll_interval = PollInterval,
+                       timer_ref = TRef},
+        {ok, State, 0}
     catch
         error:{badmatch, undefined} ->
-            error_logger:warning_msg("Consul-Url or Callback-Module is not set, ~p is not started", [?APP]),
+            error_logger:warning_msg(
+                "Consul-Url or Callback-Module is not set ~p is not started", [?APP]),
             ignore
     end.
 
@@ -81,8 +86,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 % Private functions
 
--spec poll_consul(State) -> ok when
-      State :: #state{}.
+-spec poll_consul(State :: state()) -> state().
 poll_consul(State = #state{consul_url = Url, response_parser = Parser}) ->
     case do_fetch_url(Url, State#state.poll_interval) of
         {ok, Body} ->
@@ -104,12 +108,3 @@ do_fetch_url(Url, Timeout) ->
         {ok, {_, _, Body}} -> {ok, Body};
         {error, Reason}    -> {error, Reason}
     end.
-
-
--spec init_timer(State) -> NewState when
-      State    :: #state{},
-      NewState :: #state{}.
-init_timer(State = #state{poll_interval = PollInterval}) ->
-    {ok, TRef} = timer:send_interval(PollInterval, poll_consul),
-    State#state{timer_ref = TRef}.
-
