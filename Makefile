@@ -15,11 +15,11 @@ dep_elvis_mk = git https://github.com/inaka/elvis.mk.git 1.0.0
 
 # Production deps
 DEPS = jiffy
-dep_jiffy = git git://github.com/davisp/jiffy.git 0.14.11
+dep_jiffy = git git://github.com/davisp/jiffy.git 1.0.9
 
 # Dev deps
 TEST_DEPS = meck
-dep_meck  = git git://github.com/eproxus/meck 0.8.7
+dep_meck  = git git://github.com/eproxus/meck 0.9.2
 
 EUNIT_OPTS = verbose
 
