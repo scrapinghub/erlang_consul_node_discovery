@@ -15,7 +15,7 @@ dep_elvis_mk = git https://github.com/inaka/elvis.mk.git 1.0.0
 
 # Production deps
 DEPS = jiffy
-dep_jiffy = git git://github.com/davisp/jiffy.git 1.0.9
+dep_jiffy = git git://github.com/davisp/jiffy.git 1.1.1
 
 # Dev deps
 TEST_DEPS = meck
